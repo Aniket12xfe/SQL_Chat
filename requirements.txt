@@ -96,4 +96,5 @@ validators==0.34.0
 watchdog==6.0.0
 yarl==1.17.1
 zipp==3.17.0
+psycopg2==2.9.10
 supabase==2.10.0

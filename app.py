@@ -26,6 +26,11 @@ load_dotenv()
 # Retrieve the Google API key from the environment
 google_api_key = os.getenv("GEMINI_API_KEY")
 
+username = os.getenv("username")
+password = os.getenv("password")
+hostname = os.getenv("Host")
+port = os.getenv("port")
+
 if not google_api_key:
     st.error("Google API Key not found. Please check your .env file.")
 
@@ -162,9 +167,9 @@ with st.sidebar:
     st.write("Connect your MYSQL database and chat with it!")
 
     # Connect to database
-    st.text_input("Hostname", value="localhost", key="Host")
-    st.text_input("Port", value="3306", key="Port")
-    st.text_input("Username", value="root", key="Username")
+    st.text_input("Hostname", value=hostname, key="Host")
+    st.text_input("Port", value=port, key="Port")
+    st.text_input("Username", value=username, key="Username")
     st.text_input("Password", type="password", key="Password")
     st.text_input("Database", key="Database")
 
@@ -196,28 +201,6 @@ for message in st.session_state.conversation_history:
             st.markdown(message.content)
 
 # User Query
-# user_query = st.chat_input("Question your database...")
-
-# if user_query is not None and len(user_query) > 0:
-#     st.session_state.conversation_history.append(HumanMessage(content=user_query))
-
-#     with st.chat_message("Human"):
-#         st.markdown(user_query)
-
-#     with st.chat_message("AI"):
-#         try:
-#             response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
-            
-#             if response:
-#                 st.markdown(response)
-#                 st.session_state.conversation_history.append(AIMessage(content=response))
-#             else:
-#                 fallback_message = "I'm sorry, I couldn't process that request. Could you please try rephrasing or asking something else?"
-#                 st.markdown(fallback_message)
-#                 st.session_state.conversation_history.append(AIMessage(content=fallback_message))
-#         except ValueError as err:
-#             st.markdown(f"Error processing your query: {err}")
-#             st.session_state.conversation_history.append(AIMessage(content=f"Error processing your query: {err}"))
 user_query = st.chat_input("Question your database...")
 
 if user_query is not None and len(user_query) > 0:
@@ -227,7 +210,30 @@ if user_query is not None and len(user_query) > 0:
         st.markdown(user_query)
 
     with st.chat_message("AI"):
-        response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
-        st.markdown(response)
+        try:
+            response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
+            
+            if response:
+                st.markdown(response)
+                st.session_state.conversation_history.append(AIMessage(content=response))
+            else:
+                fallback_message = "I'm sorry, I couldn't process that request. Could you please try rephrasing or asking something else?"
+                st.markdown(fallback_message)
+                st.session_state.conversation_history.append(AIMessage(content=fallback_message))
+        except ValueError as err:
+            st.markdown(f"Error processing your query: {err}")
+            st.session_state.conversation_history.append(AIMessage(content=f"Error processing your query: {err}"))
+            
+# user_query = st.chat_input("Question your database...")
 
-    st.session_state.conversation_history.append(AIMessage(content=response))
+# if user_query is not None and len(user_query) > 0:
+#     st.session_state.conversation_history.append(HumanMessage(content=user_query))
+
+#     with st.chat_message("Human"):
+#         st.markdown(user_query)
+
+#     with st.chat_message("AI"):
+#         response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
+#         st.markdown(response)
+
+#     st.session_state.conversation_history.append(AIMessage(content=response))
