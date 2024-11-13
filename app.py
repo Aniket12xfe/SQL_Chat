@@ -29,7 +29,7 @@ google_api_key = os.getenv("GEMINI_API_KEY")
 username = os.getenv("username")
 password = os.getenv("password")
 hostname = os.getenv("Host")
-port = os.getenv("port")
+port = os.getenv("Port")
 
 if not google_api_key:
     st.error("Google API Key not found. Please check your .env file.")
