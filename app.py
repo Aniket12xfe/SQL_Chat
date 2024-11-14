@@ -10,26 +10,20 @@ from urllib.parse import quote_plus
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
+import pymysql
 import os
 
 # Load environment variables
 load_dotenv()
 
-# Get the GOOGLE_API_KEY from the environment
-# google_api_key = os.getenv('GEMINI_API_KEY')
-
-# if google_api_key:
-#     print("API Key loaded successfully")
-# else:
-#     print("API Key not found")
-
 # Retrieve the Google API key from the environment
 google_api_key = os.getenv("GEMINI_API_KEY")
 
+# Database credentials from environment variables
 username = os.getenv("username")
 password = os.getenv("password")
 hostname = os.getenv("Host")
-port = os.getenv("Port")
+port = os.getenv("port")
 
 if not google_api_key:
     st.error("Google API Key not found. Please check your .env file.")
@@ -37,7 +31,7 @@ if not google_api_key:
 # Function to establish connection with MYSQL database
 def connect_database(hostname: str, port: str, username: str, password: str, database: str) -> SQLDatabase:
     encoded_password = quote_plus(password)
-    db_uri = f"mysql+mysqlconnector://{username}:{encoded_password}@{hostname}:{port}/{database}"
+    db_uri = f"mysql+pymysql://{username}:{encoded_password}@{hostname}:{port}/{database}"
     try:
         db = SQLDatabase.from_uri(db_uri)
         return db
@@ -68,10 +62,8 @@ def get_sql_chain(db):
                 SQL Query:
         """
 
-        # Use the correct model here (ChatGoogleGenerativeAI)
-        ai_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=google_api_key)
+        ai_model = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=google_api_key)
 
-        # Define the model as a runnable using the correct predict method
         model = RunnableLambda(lambda prompt: ai_model.invoke(prompt))
 
         prompt = ChatPromptTemplate.from_template(template=prompt_template)
@@ -93,7 +85,6 @@ def clean_sql_query(vars):
     # Remove the SQL markdown formatting and extra whitespace
     sql_query = vars["sql_query"]
     
-    # Strip off any markdown formatting (e.g., ```sql ... ```)
     clean_query = sql_query.replace("```sql", "").replace("```", "").strip()
     
     return clean_query
@@ -101,12 +92,10 @@ def clean_sql_query(vars):
 def get_response(user_query: str, db: SQLDatabase, conversation_history: list):
     try:
         sql_chain = get_sql_chain(db)
-        print("SQL Chain is created.")
 
-        # Ensure that conversation history is properly passed as a list of strings
+        # Ensure conversation history is passed as a list of strings
         conversation_history = [message.content for message in conversation_history]
 
-        # SQL response generation
         response_template = """
             You are a senior data analyst. 
             Given the database schema details, question, SQL query, and SQL response, 
@@ -126,11 +115,10 @@ def get_response(user_query: str, db: SQLDatabase, conversation_history: list):
 
         prompt = ChatPromptTemplate.from_template(template=response_template)
 
-        ai_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=google_api_key)
+        ai_model = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=google_api_key)
 
         model = RunnableLambda(lambda x: ai_model.invoke(x))
 
-        # Run the SQL chain, clean the query and execute it
         chain = (
             RunnablePassthrough.assign(sql_query=sql_chain)
             .assign(schema=lambda _: db.get_table_info())
@@ -144,16 +132,16 @@ def get_response(user_query: str, db: SQLDatabase, conversation_history: list):
 
         return chain.invoke({
             "question": user_query,
-            "conversation_history": conversation_history  # Ensure this is a list of strings
+            "conversation_history": conversation_history
         })
     
     except Exception as e:
         raise ValueError(f"Error in get_response: {e}")
 
 
-# Initialize conversation history
+# Initialize conversation history in session state if not already initialized
 if "conversation_history" not in st.session_state:
-    st.session_state.conversation_history = [
+    st.session_state["conversation_history"] = [
         AIMessage(content="Hello! I am a SQL assistant. Ask me questions about your MYSQL database.")
     ]
 
@@ -166,13 +154,14 @@ with st.sidebar:
     st.subheader("Settings")
     st.write("Connect your MYSQL database and chat with it!")
 
-    # Connect to database
+    # Database connection fields
     st.text_input("Hostname", value=hostname, key="Host")
     st.text_input("Port", value=port, key="Port")
     st.text_input("Username", value=username, key="Username")
     st.text_input("Password", type="password", key="Password")
     st.text_input("Database", key="Database")
 
+    # Connect to database
     if st.button("Connect"):
         with st.spinner("Connecting to database..."):
             try:
@@ -190,12 +179,11 @@ with st.sidebar:
             except ValueError as err:
                 st.error(f"Error connecting to database: {err}")
 
-# Interactive chat interface
-for message in st.session_state.conversation_history:
+# Display the chat messages
+for message in st.session_state["conversation_history"]:
     if isinstance(message, AIMessage):
         with st.chat_message("AI"):
             st.markdown(message.content)
-
     elif isinstance(message, HumanMessage):
         with st.chat_message("Human"):
             st.markdown(message.content)
@@ -204,36 +192,22 @@ for message in st.session_state.conversation_history:
 user_query = st.chat_input("Question your database...")
 
 if user_query is not None and len(user_query) > 0:
-    st.session_state.conversation_history.append(HumanMessage(content=user_query))
+    st.session_state["conversation_history"].append(HumanMessage(content=user_query))
 
     with st.chat_message("Human"):
         st.markdown(user_query)
 
     with st.chat_message("AI"):
         try:
-            response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
+            response = get_response(user_query, st.session_state["db"], st.session_state["conversation_history"])
             
             if response:
                 st.markdown(response)
-                st.session_state.conversation_history.append(AIMessage(content=response))
+                st.session_state["conversation_history"].append(AIMessage(content=response))
             else:
                 fallback_message = "I'm sorry, I couldn't process that request. Could you please try rephrasing or asking something else?"
                 st.markdown(fallback_message)
-                st.session_state.conversation_history.append(AIMessage(content=fallback_message))
+                st.session_state["conversation_history"].append(AIMessage(content=fallback_message))
         except ValueError as err:
             st.markdown(f"Error processing your query: {err}")
-            st.session_state.conversation_history.append(AIMessage(content=f"Error processing your query: {err}"))
-            
-# user_query = st.chat_input("Question your database...")
-
-# if user_query is not None and len(user_query) > 0:
-#     st.session_state.conversation_history.append(HumanMessage(content=user_query))
-
-#     with st.chat_message("Human"):
-#         st.markdown(user_query)
-
-#     with st.chat_message("AI"):
-#         response = get_response(user_query, st.session_state.db, st.session_state.conversation_history)
-#         st.markdown(response)
-
-#     st.session_state.conversation_history.append(AIMessage(content=response))
+            st.session_state["conversation_history"].append(AIMessage(content=f"Error processing your query: {err}"))
