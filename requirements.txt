@@ -97,3 +97,4 @@ watchdog==6.0.0
 yarl==1.17.1
 zipp==3.17.0
 supabase==2.10.0
+pymysql
